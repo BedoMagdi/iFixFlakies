@@ -17,7 +17,7 @@ public class NODTestMinimizer extends TestMinimizer {
     @Override
     public MinimizeTestsResult run() throws Exception {
         // Dummy call, does not do any work and returns a MinimizeTestsResult marked with NOD
-        return new MinimizeTestsResult(OperationTime.instantaneous(), expectedRun, expected, dependentTest, new ArrayList<PolluterData>(), FlakyClass.NOD);
+        return new MinimizeTestsResult(OperationTime.instantaneous(), expectedRun, isolatedRun, expected, dependentTest, new ArrayList<PolluterData>(), FlakyClass.NOD);
     }
 
 }

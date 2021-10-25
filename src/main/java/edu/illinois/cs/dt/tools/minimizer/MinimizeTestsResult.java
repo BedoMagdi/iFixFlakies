@@ -4,6 +4,7 @@ import com.google.gson.Gson;
 import com.reedoei.eunomia.collections.ListUtil;
 import com.reedoei.eunomia.io.IOUtil;
 import com.reedoei.eunomia.io.files.FileUtil;
+import edu.illinois.cs.dt.tools.detection.DetectorUtil;
 import edu.illinois.cs.dt.tools.utility.MD5;
 import edu.illinois.cs.dt.tools.utility.OperationTime;
 import edu.illinois.cs.testrunner.data.results.Result;
@@ -22,6 +23,7 @@ public class MinimizeTestsResult {
 
     private final OperationTime time;
     private final TestRunResult expectedRun;
+    private final TestRunResult isolatedRun;
     private final Result expected;
     private final String dependentTest;
     private final List<PolluterData> polluters;
@@ -36,10 +38,11 @@ public class MinimizeTestsResult {
         return new Gson().fromJson(jsonString, MinimizeTestsResult.class);
     }
 
-    public MinimizeTestsResult(final OperationTime time, final TestRunResult expectedRun, final Result expected,
+    public MinimizeTestsResult(final OperationTime time, final TestRunResult expectedRun, final TestRunResult isolatedRun, final Result expected,
                                final String dependentTest, final List<PolluterData> polluters, final FlakyClass flakyClass) {
         this.time = time;
         this.expectedRun = expectedRun;
+        this.isolatedRun = isolatedRun;
         this.expected = expected;
         this.dependentTest = dependentTest;
         this.polluters = polluters;
@@ -63,9 +66,18 @@ public class MinimizeTestsResult {
         final List<String> order = new ArrayList<>(deps);
         order.add(dependentTest());
 
-        return runner
-                .runList(order)
-                .get()
+        TestRunResult res =  runner.runList(order).get();
+        double curTime = res.results().get(dependentTest()).time();
+        double origTime = expectedRun.results().get(dependentTest()).time();
+        final double min = Math.min(origTime, curTime);
+        final double threshold = Math.min((1)/(Math.log(1+min)), 50);
+
+        System.out.println("\ncurTime: "+ curTime + " origTime: " + origTime + " Threshold: " + threshold  +"\nDifference: " + Math.abs(origTime - curTime)
+                +"  (min * threshold): " + threshold * min+ " min: "+ min);
+        System.out.println("(current order): " + order);
+
+        return  DetectorUtil.isSimilar(curTime, origTime)
+                && res
                 .results()
                 .get(dependentTest()).result().equals(expected());
     }
@@ -185,4 +197,10 @@ public class MinimizeTestsResult {
     public TestRunResult expectedRun() {
         return expectedRun;
     }
+
+    //add this getter for isolatedRun
+    public TestRunResult isolatedRun() {
+        return isolatedRun;
+    }
+
 }

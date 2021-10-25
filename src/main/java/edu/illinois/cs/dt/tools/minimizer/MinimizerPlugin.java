@@ -3,6 +3,7 @@ package edu.illinois.cs.dt.tools.minimizer;
 import com.reedoei.eunomia.collections.StreamUtil;
 import edu.illinois.cs.dt.tools.detection.DetectorPathManager;
 import edu.illinois.cs.dt.tools.detection.DetectorPlugin;
+import edu.illinois.cs.dt.tools.detection.DetectorUtil;
 import edu.illinois.cs.dt.tools.detection.detectors.Detector;
 import edu.illinois.cs.dt.tools.detection.detectors.RandomDetector;
 import edu.illinois.cs.dt.tools.runner.InstrumentingSmartRunner;
@@ -12,6 +13,8 @@ import edu.illinois.cs.dt.tools.runner.data.TestRun;
 import edu.illinois.cs.dt.tools.utility.ErrorLogger;
 import edu.illinois.cs.testrunner.configuration.Configuration;
 import edu.illinois.cs.testrunner.data.results.Result;
+import edu.illinois.cs.testrunner.data.results.TestResult;
+import edu.illinois.cs.testrunner.data.results.TestRunResult;
 import edu.illinois.cs.testrunner.mavenplugin.MavenProjectWrapper;
 import edu.illinois.cs.testrunner.mavenplugin.TestPlugin;
 import edu.illinois.cs.testrunner.mavenplugin.TestPluginPlugin;
@@ -151,6 +154,7 @@ public class MinimizerPlugin extends TestPlugin {
         final TestRun revealed = dependentTest.revealed();
         final String name = dependentTest.name();
         final TestMinimizerBuilder minimizerBuilder = builder.dependentTest(name);
+        double isolatedRunTime;
 
         if (VERIFY_DTS) {
             if (!intended.verify(name, runner, null) || !revealed.verify(name, runner, null)) {
@@ -160,27 +164,80 @@ public class MinimizerPlugin extends TestPlugin {
 
         // Try running dependent test in isolation to determine which order to minimize
         // Also run it 10 times to be more confident that test is deterministic in its result
-        final Result isolationResult = runner.runList(Collections.singletonList(name)).get().results().get(name).result();
+        final TestResult run =  runner.runList(Collections.singletonList(name)).get().results().get(name);
+        final Result isolationResult = run.result();
+
+        double firstRunTime = run.time(); //added this line to get the time of the isolated run
+        System.out.println("***********");
+        System.out.println("First run time: " + firstRunTime);
+
         for (int i = 0; i < 9; i++) {
-            Result rerunIsolationResult = runner.runList(Collections.singletonList(name)).get().results().get(name).result();
+            TestResult runMultiple =  runner.runList(Collections.singletonList(name)).get().results().get(name);
+            double newTime = runMultiple.time();
+
             // If ever get different result, then not confident in result, return
-            if (!rerunIsolationResult.equals(isolationResult)) {
-                System.out.println("Test " + name + " does not have consistent result in isolation, not order-dependent!");
+            if (!DetectorUtil.isSimilar(firstRunTime, newTime)) {
+                System.out.println("Test " + name + " does not have consistent runTime in isolation, not time-flaky!");
                 return Stream.of(minimizerBuilder.buildNOD());
             }
         }
 
+        //for debugging
+        System.out.println("***********");
+
+
+
+        //modified this block to check for time instead.
         TestMinimizer tm;
+
         if (originalOrder != null) {
             TestPluginPlugin.info("Using original order to run Minimizer instead of intended or revealed order.");
-            if (!isolationResult.equals(Result.PASS)) {
+
+            //get times and do calc
+            double intendedRunTime = intended.time();
+            double revealedRunTime = revealed.time();
+
+            final double min = Math.min(Math.abs(intendedRunTime - firstRunTime), Math.abs(revealedRunTime - firstRunTime));
+            final double threshold = Math.min((1)/(Math.log(1+min)), 50);
+            final double margin = min * threshold;
+
+            boolean checkRevealed = Math.abs(firstRunTime - revealedRunTime) <= margin;
+            boolean checkIntended = Math.abs(firstRunTime - intendedRunTime) <= margin;
+
+            //for debugging
+            System.out.println("Intended Time: " + intendedRunTime + "\tRevealed Time: " + revealedRunTime);
+            System.out.printf("Threshold: " + threshold + "\tmargin: " + margin);
+            System.out.println();
+
+            if(checkIntended && checkRevealed){
+                //can't be both
+                System.out.println("---isolatedRunTime == Intended Time && Revealed Time---");
+                return Stream.empty();
+            }else if(checkRevealed){
+                //for debugging
+                System.out.println("Minimizing Intended");
+
+                //here minimize intended
                 tm = minimizerBuilder.testOrder(reorderOriginalOrder(intended.order(), originalOrder, name)).build();
-            } else {
+            }else if(checkIntended){
+                //for debugging
+                System.out.println("Minimizing Revealed");
+
+                //here minimize revealed
                 tm = minimizerBuilder.testOrder(reorderOriginalOrder(revealed.order(), originalOrder, name)).build();
+            } else{
+                //can't be neither as well
+                System.out.println("---isolatedRunTime != Intended Time || Revealed Time---");
+                return Stream.empty();
             }
+//            if (!isolationResult.equals(Result.PASS)) {
+//                tm = minimizerBuilder.testOrder(reorderOriginalOrder(intended.order(), originalOrder, name)).build();
+//            } else {
+//                tm = minimizerBuilder.testOrder(reorderOriginalOrder(revealed.order(), originalOrder, name)).build();
+//            }
         } else if (!isolationResult.equals(Result.PASS)) { // Does not pass in isolation, needs setter, so need to minimize passing order
             tm = minimizerBuilder.testOrder(intended.order()).build();
-            
+
         } else {    // Otherwise passes in isolation, needs polluter, so need to minimize failing order
             tm = minimizerBuilder.testOrder(revealed.order()).build();
         }

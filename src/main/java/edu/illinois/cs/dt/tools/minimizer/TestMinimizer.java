@@ -43,6 +43,7 @@ public class TestMinimizer extends FileCache<MinimizeTestsResult> {
     protected final Path path;
 
     protected TestRunResult expectedRun;
+    protected TestRunResult isolatedRun;
 
     private void debug(final String str) {
         TestPluginPlugin.mojo().getLog().debug(str);
@@ -63,8 +64,10 @@ public class TestMinimizer extends FileCache<MinimizeTestsResult> {
         // Run in given order to determine what the result should be.
         debug("Getting expected result for: " + dependentTest);
         this.expectedRun = runResult(testOrder);
+        this.isolatedRun = runResult(Collections.singletonList(dependentTest)); //added this
+
         this.expected = expectedRun.results().get(dependentTest).result();
-        this.isolationResult = result(Collections.singletonList(dependentTest));
+        this.isolationResult =  this.isolatedRun.results().get(dependentTest).result(); //result(Collections.singletonList(dependentTest));
         debug("Expected: " + expected);
 
         this.path = MinimizerPathManager.minimized(dependentTest, MD5.hashOrder(expectedRun.testOrder()), expected);
@@ -122,14 +125,14 @@ public class TestMinimizer extends FileCache<MinimizeTestsResult> {
             return polluters;
         }, (polluters, time) -> {
             final MinimizeTestsResult minimizedResult =
-                    new MinimizeTestsResult(time, expectedRun, expected, dependentTest, polluters, FlakyClass.OD);
+                    new MinimizeTestsResult(time, expectedRun, isolatedRun, expected, dependentTest, polluters, FlakyClass.OD);
 
             // If the verifying does not work, then mark this test as NOD
             boolean verifyStatus = minimizedResult.verify(runner);
             if (verifyStatus) {
                 return minimizedResult;
             } else {
-                return new MinimizeTestsResult(time, expectedRun, expected, dependentTest, polluters, FlakyClass.NOD);
+                return new MinimizeTestsResult(time, expectedRun, isolatedRun, expected, dependentTest, polluters, FlakyClass.NOD);
             }
         });
     }
@@ -172,6 +175,16 @@ public class TestMinimizer extends FileCache<MinimizeTestsResult> {
                 cleanerData = new CleanerData(dependentTest, expected, isolationResult, new ListEx<CleanerGroup>());
             }
 
+            //add more verification step
+            ArrayList<PolluterData> arr = new ArrayList<>();
+            arr.add(new PolluterData(operationTime[0], index, deps, cleanerData));
+            final MinimizeTestsResult dummyMinimizedResult =
+                    new MinimizeTestsResult(operationTime[0], expectedRun, isolatedRun, expected, dependentTest, arr, FlakyClass.OD);
+
+            boolean verifyStatus = dummyMinimizedResult.verify(runner);
+            if (!verifyStatus){
+                continue;
+            }
             polluters.add(new PolluterData(operationTime[0], index, deps, cleanerData));
   
             // If not configured to find all, since one is found now, can stop looking
@@ -207,7 +220,7 @@ public class TestMinimizer extends FileCache<MinimizeTestsResult> {
             return deps;
         }
 
-        TestMinimizerDeltaDebugger debugger = new TestMinimizerDeltaDebugger(this.runner, this.dependentTest, this.expected);
+        TimeTestMinimizerDeltaDebugger debugger = new TimeTestMinimizerDeltaDebugger(this.runner, this.dependentTest, this.expected, this.expectedRun);
         deps.addAll(debugger.deltaDebug(order, 2));
 
         return deps;
