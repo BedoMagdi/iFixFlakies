@@ -67,8 +67,10 @@ public class MinimizeTestsResult {
         order.add(dependentTest());
 
         TestRunResult res =  runner.runList(order).get();
-        double curTime = res.results().get(dependentTest()).time();
-        double origTime = expectedRun.results().get(dependentTest()).time();
+        double curTime = Math.max(res.results().get(dependentTest()).time(), 0.001);
+        double origTime = Math.max(expectedRun.results().get(dependentTest()).time(), 0.001);
+
+        //keep these values for debugging (for now)
         final double min = Math.min(origTime, curTime);
         final double threshold = Math.min((1)/(Math.log(1+min)), 50);
 

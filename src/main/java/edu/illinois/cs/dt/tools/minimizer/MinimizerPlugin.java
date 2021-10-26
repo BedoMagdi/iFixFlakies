@@ -164,10 +164,12 @@ public class MinimizerPlugin extends TestPlugin {
 
         // Try running dependent test in isolation to determine which order to minimize
         // Also run it 10 times to be more confident that test is deterministic in its result
-        final TestResult run =  runner.runList(Collections.singletonList(name)).get().results().get(name);
-        final Result isolationResult = run.result();
+        final TestRunResult isolatedRun =  runner.runList(Collections.singletonList(name)).get();
+        final Result isolationResult = isolatedRun.results().get(name).result();
 
-        double firstRunTime = run.time(); //added this line to get the time of the isolated run
+
+
+        double firstRunTime = isolatedRun.results().get(name).time(); //added this line to get the time of the isolated run
         System.out.println("***********");
         System.out.println("First run time: " + firstRunTime);
 
@@ -194,18 +196,19 @@ public class MinimizerPlugin extends TestPlugin {
             TestPluginPlugin.info("Using original order to run Minimizer instead of intended or revealed order.");
 
             //get times and do calc
-            double intendedRunTime = intended.time();
-            double revealedRunTime = revealed.time();
+            double firstIntendedRunTime = intended.time();
+            double firstRevealedRunTime = revealed.time();
 
-            final double min = Math.min(Math.abs(intendedRunTime - firstRunTime), Math.abs(revealedRunTime - firstRunTime));
+            //couldn't use isSimilar here because of the slight modification to min
+            final double min = Math.min(firstIntendedRunTime, firstRevealedRunTime);
             final double threshold = Math.min((1)/(Math.log(1+min)), 50);
             final double margin = min * threshold;
 
-            boolean checkRevealed = Math.abs(firstRunTime - revealedRunTime) <= margin;
-            boolean checkIntended = Math.abs(firstRunTime - intendedRunTime) <= margin;
+            boolean checkRevealed = Math.abs(firstRunTime - firstRevealedRunTime) <= margin;
+            boolean checkIntended = Math.abs(firstRunTime - firstIntendedRunTime) <= margin;
 
             //for debugging
-            System.out.println("Intended Time: " + intendedRunTime + "\tRevealed Time: " + revealedRunTime);
+            System.out.println("Intended Time: " + firstIntendedRunTime + "\tRevealed Time: " + firstRevealedRunTime);
             System.out.printf("Threshold: " + threshold + "\tmargin: " + margin);
             System.out.println();
 
@@ -217,11 +220,51 @@ public class MinimizerPlugin extends TestPlugin {
                 //for debugging
                 System.out.println("Minimizing Intended");
 
+                //should hard verify that the time of the test
+                //is consistent in the intended order.
+                //if not, abort now
+                final List<String> actualOrder = new ArrayList<>(intended.order());
+
+                if (!actualOrder.contains(dependentTest.name())) {
+                    actualOrder.add(dependentTest.name());
+                }
+
+                for (int i = 0; i < 9; i++){
+                    TestResult runMultiple =  runner.runList(actualOrder).get().results().get(name);
+                    double newTime = runMultiple.time();
+
+                    // If ever get different result, then not confident in result, return
+                    if (!DetectorUtil.isSimilar(firstIntendedRunTime, newTime)) {
+                        System.out.println("Test " + name + " does not have consistent runTime in isolation, not time-flaky!");
+                        return Stream.of(minimizerBuilder.buildNOD());
+                    }
+                }
+
                 //here minimize intended
                 tm = minimizerBuilder.testOrder(reorderOriginalOrder(intended.order(), originalOrder, name)).build();
             }else if(checkIntended){
                 //for debugging
                 System.out.println("Minimizing Revealed");
+
+                //should hard verify that the time of the test
+                //is consistent in the revealed order.
+                //if not, abort now
+                final List<String> actualOrder = new ArrayList<>(revealed.order());
+
+                if (!actualOrder.contains(dependentTest.name())) {
+                    actualOrder.add(dependentTest.name());
+                }
+                for (int i = 0; i < 9; i++){
+
+                    TestRunResult res =  runner.runList(actualOrder).get();
+                    double newTime = res.results().get(dependentTest.name()).time();
+
+                    // If ever get different result, then not confident in result, return
+                    if (!DetectorUtil.isSimilar(firstRevealedRunTime, newTime)) {
+                        System.out.println("Test " + name + " does not have consistent runTime in isolation, not time-flaky!");
+                        return Stream.of(minimizerBuilder.buildNOD());
+                    }
+                }
 
                 //here minimize revealed
                 tm = minimizerBuilder.testOrder(reorderOriginalOrder(revealed.order(), originalOrder, name)).build();
