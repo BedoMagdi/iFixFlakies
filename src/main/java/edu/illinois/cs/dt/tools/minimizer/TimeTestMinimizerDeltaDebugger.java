@@ -1,5 +1,6 @@
 package edu.illinois.cs.dt.tools.minimizer;
 
+import edu.illinois.cs.dt.tools.detection.DetectorUtil;
 import edu.illinois.cs.testrunner.data.results.Result;
 import edu.illinois.cs.testrunner.data.results.TestRunResult;
 import edu.illinois.cs.testrunner.runner.SmartRunner;
@@ -27,12 +28,16 @@ public class TimeTestMinimizerDeltaDebugger extends TestMinimizerDeltaDebugger{
 
     @Override
     public boolean checkValid(List<String> tests) {
-        final double threshold;
         boolean check = this.expected == result(tests);
-        final double min = Math.min(origTime, curTime);
-        threshold = Math.min((1)/(Math.log(1+min)), 50);
 
-        return  check && (Math.abs(origTime - curTime) <= min * threshold) ;
+        //make sure the output is consistent
+        for(int i = 0; i < 9;i++){
+            result(tests); //this will rerun the order and update curTime
+            if(!DetectorUtil.isSimilar(curTime, origTime)){
+                return false;
+            }
+        }
+        return  check && DetectorUtil.isSimilar(curTime, origTime);
     }
 
     private Result result(final List<String> tests) {

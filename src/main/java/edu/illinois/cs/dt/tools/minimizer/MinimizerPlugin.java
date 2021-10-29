@@ -154,7 +154,7 @@ public class MinimizerPlugin extends TestPlugin {
         final TestRun revealed = dependentTest.revealed();
         final String name = dependentTest.name();
         final TestMinimizerBuilder minimizerBuilder = builder.dependentTest(name);
-        double isolatedRunTime;
+
 
         if (VERIFY_DTS) {
             if (!intended.verify(name, runner, null) || !revealed.verify(name, runner, null)) {
@@ -169,24 +169,22 @@ public class MinimizerPlugin extends TestPlugin {
 
 
 
-        double firstRunTime = isolatedRun.results().get(name).time(); //added this line to get the time of the isolated run
+        double firstIsolatedRunTime = isolatedRun.results().get(name).time(); //added this line to get the time of the isolated run
+        //for debugging
         System.out.println("***********");
-        System.out.println("First run time: " + firstRunTime);
+        System.out.println("First run time: " + firstIsolatedRunTime);
+        System.out.println("***********");
 
         for (int i = 0; i < 9; i++) {
             TestResult runMultiple =  runner.runList(Collections.singletonList(name)).get().results().get(name);
             double newTime = runMultiple.time();
 
             // If ever get different result, then not confident in result, return
-            if (!DetectorUtil.isSimilar(firstRunTime, newTime)) {
+            if (!DetectorUtil.isSimilar(firstIsolatedRunTime, newTime)) {
                 System.out.println("Test " + name + " does not have consistent runTime in isolation, not time-flaky!");
                 return Stream.of(minimizerBuilder.buildNOD());
             }
         }
-
-        //for debugging
-        System.out.println("***********");
-
 
 
         //modified this block to check for time instead.
@@ -199,18 +197,48 @@ public class MinimizerPlugin extends TestPlugin {
             double firstIntendedRunTime = intended.time();
             double firstRevealedRunTime = revealed.time();
 
-            //couldn't use isSimilar here because of the slight modification to min
-            final double min = Math.min(firstIntendedRunTime, firstRevealedRunTime);
-            final double threshold = Math.min((1)/(Math.log(1+min)), 50);
-            final double margin = min * threshold;
+            //make sure the check result is consistent
+            boolean checkRevealed = DetectorUtil.isSimilar(firstIsolatedRunTime, firstRevealedRunTime);
+            {
+                final List<String> actualOrder = new ArrayList<>(revealed.order());
 
-            boolean checkRevealed = Math.abs(firstRunTime - firstRevealedRunTime) <= margin;
-            boolean checkIntended = Math.abs(firstRunTime - firstIntendedRunTime) <= margin;
+                if (!actualOrder.contains(dependentTest.name())) {
+                    actualOrder.add(dependentTest.name());
+                }
+
+                for (int i = 0; i < 9; i++) {
+                    TestRunResult res = runner.runList(actualOrder).get();
+                    double newTime = res.results().get(dependentTest.name()).time();
+                    boolean newCheck = DetectorUtil.isSimilar(firstIsolatedRunTime, newTime);
+                    if (newCheck != checkRevealed) {
+                        System.out.println("---isolatedRunTime is not consistent w.r.t. revealedTime");
+                        return Stream.of(minimizerBuilder.buildNOD());
+                    }
+                }
+            }
+            boolean checkIntended = DetectorUtil.isSimilar(firstIsolatedRunTime, firstIntendedRunTime);
+            {
+                final List<String> actualOrder = new ArrayList<>(intended.order());
+
+                if (!actualOrder.contains(dependentTest.name())) {
+                    actualOrder.add(dependentTest.name());
+                }
+
+                for (int i = 0; i < 9; i++) {
+                    TestRunResult res = runner.runList(actualOrder).get();
+                    double newTime = res.results().get(dependentTest.name()).time();
+                    boolean newCheck = DetectorUtil.isSimilar(firstIsolatedRunTime, newTime);
+                    if (newCheck != checkIntended) {
+                        System.out.println("---isolatedRunTime is not consistent w.r.t. intendedTime");
+                        return Stream.of(minimizerBuilder.buildNOD());
+                    }
+                }
+            }
 
             //for debugging
-            System.out.println("Intended Time: " + firstIntendedRunTime + "\tRevealed Time: " + firstRevealedRunTime);
-            System.out.printf("Threshold: " + threshold + "\tmargin: " + margin);
-            System.out.println();
+//            System.out.println("Intended Time: " + firstIntendedRunTime + "\tRevealed Time: " + firstRevealedRunTime);
+//            System.out.printf("Threshold: " + threshold + "\tmargin: " + margin);
+//            System.out.println();
 
             if(checkIntended && checkRevealed){
                 //can't be both
@@ -230,12 +258,12 @@ public class MinimizerPlugin extends TestPlugin {
                 }
 
                 for (int i = 0; i < 9; i++){
-                    TestResult runMultiple =  runner.runList(actualOrder).get().results().get(name);
-                    double newTime = runMultiple.time();
+                    TestRunResult res =  runner.runList(actualOrder).get();
+                    double newTime = res.results().get(dependentTest.name()).time();
 
                     // If ever get different result, then not confident in result, return
                     if (!DetectorUtil.isSimilar(firstIntendedRunTime, newTime)) {
-                        System.out.println("Test " + name + " does not have consistent runTime in isolation, not time-flaky!");
+                        System.out.println("Test " + name + " does not have consistent runTime in Intended, not time-flaky!");
                         return Stream.of(minimizerBuilder.buildNOD());
                     }
                 }
@@ -261,7 +289,7 @@ public class MinimizerPlugin extends TestPlugin {
 
                     // If ever get different result, then not confident in result, return
                     if (!DetectorUtil.isSimilar(firstRevealedRunTime, newTime)) {
-                        System.out.println("Test " + name + " does not have consistent runTime in isolation, not time-flaky!");
+                        System.out.println("Test " + name + " does not have consistent runTime in Revealed, not time-flaky!");
                         return Stream.of(minimizerBuilder.buildNOD());
                     }
                 }
