@@ -7,6 +7,7 @@ import com.reedoei.eunomia.data.caching.FileCache;
 import com.reedoei.eunomia.io.files.FileUtil;
 import com.reedoei.eunomia.util.RuntimeThrower;
 import com.reedoei.eunomia.util.Util;
+import edu.illinois.cs.dt.tools.detection.DetectorUtil;
 import edu.illinois.cs.dt.tools.minimizer.cleaner.CleanerData;
 import edu.illinois.cs.dt.tools.minimizer.cleaner.CleanerFinder;
 import edu.illinois.cs.dt.tools.minimizer.cleaner.CleanerGroup;
@@ -141,7 +142,9 @@ public class TestMinimizer extends FileCache<MinimizeTestsResult> {
         // order can be the prefix + dependentTest or just the prefix. All current uses of this method are using it as just prefix
         while (!order.isEmpty()) {
             // First need to check if remaining tests in order still lead to expected value
-            if (result(order) != expected) {
+            double curtime = runResult(order).results().get(dependentTest).time();
+            double expectedTime = expectedRun.results().get(dependentTest).time();
+            if (result(order) != expected || !DetectorUtil.isSimilar(curtime, expectedTime)) {
                 info("Remaining tests no longer match expected: " + order);
                 break;
             }
