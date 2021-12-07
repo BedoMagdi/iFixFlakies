@@ -36,8 +36,12 @@ public class TestMinimizerBuilder {
         return new TestMinimizerBuilder(this.testOrder, this.dependentTest, runner);
     }
 
+    public TestMinimizer build(FlakyClass flakyClass) {
+        return new TestMinimizer(this.testOrder, this.runner, this.dependentTest, flakyClass);
+    }
+
     public TestMinimizer build() {
-        return new TestMinimizer(this.testOrder, this.runner, this.dependentTest);
+        return new TestMinimizer(this.testOrder, this.runner, this.dependentTest, FlakyClass.NOD); //might need to review
     }
 
     public TestMinimizer buildNOD() {

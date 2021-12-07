@@ -31,6 +31,7 @@ public class TestMinimizer extends FileCache<MinimizeTestsResult> {
     protected final List<String> testOrder;
     protected final String dependentTest;
     protected final Result expected;
+    protected final FlakyClass flakyClass;
     protected final Result isolationResult;
     protected final SmartRunner runner;
     protected final List<String> fullTestOrder;
@@ -54,7 +55,7 @@ public class TestMinimizer extends FileCache<MinimizeTestsResult> {
         TestPluginPlugin.mojo().getLog().info(str);
     }
 
-    public TestMinimizer(final List<String> testOrder, final SmartRunner runner, final String dependentTest) {
+    public TestMinimizer(final List<String> testOrder, final SmartRunner runner, final String dependentTest, FlakyClass flakyClass) {
         // Only take the tests that come before the dependent test
         this.fullTestOrder = testOrder;
         this.testOrder = testOrder.contains(dependentTest) ? ListUtil.before(testOrder, dependentTest) : testOrder;
@@ -72,6 +73,7 @@ public class TestMinimizer extends FileCache<MinimizeTestsResult> {
         debug("Expected: " + expected);
 
         this.path = MinimizerPathManager.minimized(dependentTest, MD5.hashOrder(expectedRun.testOrder()), expected);
+        this.flakyClass= flakyClass;
     }
 
     public Result expected() {
@@ -126,7 +128,7 @@ public class TestMinimizer extends FileCache<MinimizeTestsResult> {
             return polluters;
         }, (polluters, time) -> {
             final MinimizeTestsResult minimizedResult =
-                    new MinimizeTestsResult(time, expectedRun, isolatedRun, expected, dependentTest, polluters, FlakyClass.OD);
+                    new MinimizeTestsResult(time, expectedRun, isolatedRun, expected, dependentTest, polluters, this.flakyClass);
 
             // If the verifying does not work, then mark this test as NOD
             boolean verifyStatus = minimizedResult.verify(runner);
@@ -182,7 +184,7 @@ public class TestMinimizer extends FileCache<MinimizeTestsResult> {
             ArrayList<PolluterData> arr = new ArrayList<>();
             arr.add(new PolluterData(operationTime[0], index, deps, cleanerData));
             final MinimizeTestsResult dummyMinimizedResult =
-                    new MinimizeTestsResult(operationTime[0], expectedRun, isolatedRun, expected, dependentTest, arr, FlakyClass.OD);
+                    new MinimizeTestsResult(operationTime[0], expectedRun, isolatedRun, expected, dependentTest, arr, flakyClass);
 
             boolean verifyStatus = dummyMinimizedResult.verify(runner);
             if (!verifyStatus){

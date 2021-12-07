@@ -74,7 +74,6 @@ public class MinimizeTestsResult {
         final double min = Math.min(origTime, curTime);
         final double threshold = Math.min((1)/(Math.log(1+min)), 50);
 
-        System.out.println();
         System.out.println("\ncurTime: "+ curTime + " origTime: " + origTime + " Threshold: " + threshold  +"\nDifference: " + Math.abs(origTime - curTime)
                 +"  (min * threshold): " + threshold * min+ " min: "+ min);
         System.out.println("(current order): " + order);

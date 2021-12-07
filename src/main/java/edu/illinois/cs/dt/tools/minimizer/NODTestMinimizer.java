@@ -11,7 +11,7 @@ import java.util.List;
 public class NODTestMinimizer extends TestMinimizer {
 
     public NODTestMinimizer(final List<String> testOrder, final InstrumentingSmartRunner runner, final String dependentTest) {
-        super(testOrder, runner, dependentTest);
+        super(testOrder, runner, dependentTest, FlakyClass.NOD);
     }
 
     @Override

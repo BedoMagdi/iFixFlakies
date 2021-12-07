@@ -181,7 +181,7 @@ public class MinimizerPlugin extends TestPlugin {
 
             // If ever get different result, then not confident in result, return
             if (!DetectorUtil.isSimilar(firstIsolatedRunTime, newTime)) {
-                System.out.println("Test " + name + " does not have consistent runTime in isolation, not time-flaky!");
+                System.out.println("Test " + name + " does not have consistent runTime in isolation, not time-flaky!\n");
                 return Stream.of(minimizerBuilder.buildNOD());
             }
         }
@@ -211,7 +211,7 @@ public class MinimizerPlugin extends TestPlugin {
                     double newTime = res.results().get(dependentTest.name()).time();
                     boolean newCheck = DetectorUtil.isSimilar(firstIsolatedRunTime, newTime);
                     if (newCheck != checkRevealed) {
-                        System.out.println("---isolatedRunTime is not consistent w.r.t. revealedTime");
+                        System.out.println("---isolatedRunTime is not consistent w.r.t. revealedTime\n");
                         return Stream.of(minimizerBuilder.buildNOD());
                     }
                 }
@@ -229,7 +229,7 @@ public class MinimizerPlugin extends TestPlugin {
                     double newTime = res.results().get(dependentTest.name()).time();
                     boolean newCheck = DetectorUtil.isSimilar(firstIsolatedRunTime, newTime);
                     if (newCheck != checkIntended) {
-                        System.out.println("---isolatedRunTime is not consistent w.r.t. intendedTime");
+                        System.out.println("---isolatedRunTime is not consistent w.r.t. intendedTime\n");
                         return Stream.of(minimizerBuilder.buildNOD());
                     }
                 }
@@ -242,7 +242,7 @@ public class MinimizerPlugin extends TestPlugin {
 
             if(checkIntended && checkRevealed){
                 //can't be both
-                System.out.println("---isolatedRunTime == Intended Time && Revealed Time---");
+                System.out.println("---isolatedRunTime == Intended Time && Revealed Time---\n");
                 return Stream.empty();
             }else if(checkRevealed){
                 //for debugging
@@ -263,13 +263,18 @@ public class MinimizerPlugin extends TestPlugin {
 
                     // If ever get different result, then not confident in result, return
                     if (!DetectorUtil.isSimilar(firstIntendedRunTime, newTime)) {
-                        System.out.println("Test " + name + " does not have consistent runTime in Intended, not time-flaky!");
+                        System.out.println("Test " + name + " does not have consistent runTime in Intended, not time-flaky!\n");
                         return Stream.of(minimizerBuilder.buildNOD());
                     }
                 }
+                //determine the flaky class
+                FlakyClass flakyClass = FlakyClass.BOOST;
+                if(firstIsolatedRunTime < firstIntendedRunTime){
+                    flakyClass = FlakyClass.STALL;
+                }
 
                 //here minimize intended
-                tm = minimizerBuilder.testOrder(reorderOriginalOrder(intended.order(), originalOrder, name)).build();
+                tm = minimizerBuilder.testOrder(reorderOriginalOrder(intended.order(), originalOrder, name)).build(flakyClass);
             }else if(checkIntended){
                 //for debugging
                 System.out.println("Minimizing Revealed");
@@ -289,16 +294,21 @@ public class MinimizerPlugin extends TestPlugin {
 
                     // If ever get different result, then not confident in result, return
                     if (!DetectorUtil.isSimilar(firstRevealedRunTime, newTime)) {
-                        System.out.println("Test " + name + " does not have consistent runTime in Revealed, not time-flaky!");
+                        System.out.println("Test " + name + " does not have consistent runTime in Revealed, not time-flaky!\n");
                         return Stream.of(minimizerBuilder.buildNOD());
                     }
                 }
+                //determine the flaky class
+                FlakyClass flakyClass = FlakyClass.BOOST;
+                if(firstIsolatedRunTime < firstRevealedRunTime){
+                    flakyClass = FlakyClass.STALL;
+                }
 
                 //here minimize revealed
-                tm = minimizerBuilder.testOrder(reorderOriginalOrder(revealed.order(), originalOrder, name)).build();
+                tm = minimizerBuilder.testOrder(reorderOriginalOrder(revealed.order(), originalOrder, name)).build(flakyClass);
             } else{
                 //can't be neither as well
-                System.out.println("---isolatedRunTime != Intended Time || Revealed Time---");
+                System.out.println("---isolatedRunTime != Intended Time || Revealed Time---\n");
                 return Stream.empty();
             }
 //            if (!isolationResult.equals(Result.PASS)) {
