@@ -272,6 +272,7 @@ public class MinimizerPlugin extends TestPlugin {
                 if(firstIsolatedRunTime < firstIntendedRunTime){
                     flakyClass = FlakyClass.STALL;
                 }
+                System.out.println("flaky class -> " + flakyClass);
 
                 //here minimize intended
                 tm = minimizerBuilder.testOrder(reorderOriginalOrder(intended.order(), originalOrder, name)).build(flakyClass);
@@ -303,6 +304,8 @@ public class MinimizerPlugin extends TestPlugin {
                 if(firstIsolatedRunTime < firstRevealedRunTime){
                     flakyClass = FlakyClass.STALL;
                 }
+
+                System.out.println("flaky class -> " + flakyClass);
 
                 //here minimize revealed
                 tm = minimizerBuilder.testOrder(reorderOriginalOrder(revealed.order(), originalOrder, name)).build(flakyClass);
